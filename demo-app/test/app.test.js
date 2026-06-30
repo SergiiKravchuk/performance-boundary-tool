@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createShortenerServer } from '../src/app.js';
+import { createShortenerApp } from '../src/app.js';
 
 test('POST /shorten returns 201 with a short URL and stores the mapping', async t => {
   const app = await startServer();
@@ -131,10 +131,12 @@ test('non-matching routes return 404', async t => {
 });
 
 async function startServer(options = {}) {
-  const { server, store } = createShortenerServer(options);
+  const { app, store } = createShortenerApp(options);
 
-  await new Promise(resolve => {
-    server.listen(0, '127.0.0.1', resolve);
+  const server = await new Promise(resolve => {
+    const listeningServer = app.listen(0, '127.0.0.1', () => {
+      resolve(listeningServer);
+    });
   });
 
   const address = server.address();

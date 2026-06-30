@@ -1,30 +1,75 @@
-import http from 'node:http';
+import express from 'express';
 import { randomInt } from 'node:crypto';
 
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
-export function createShortenerServer({
+export function createShortenerApp({
   store = new Map(),
   generateCode = () => generateShortCode(6)
 } = {}) {
-  const server = http.createServer((request, response) => {
-    void handleRequest(request, response, { store, generateCode }).catch(error => {
-      if (error?.statusCode === 400) {
-        writeJson(response, 400, { error: error.message });
+  const app = express();
+
+  app.use(express.json());
+
+  app.route('/shorten')
+    .post((request, response, next) => {
+      try {
+        const targetUrl = normalizeTargetUrl(request.body?.url);
+        const code = generateCode();
+
+        store.set(code, targetUrl);
+        response.status(201).json({
+          url: targetUrl,
+          code,
+          shortUrl: buildShortUrl(request, code)
+        });
+      } catch (error) {
+        next(error);
+      }
+    })
+    .all((request, response) => {
+      response.set('Allow', 'POST').status(405).json({ error: 'Method not allowed. Use POST' });
+    });
+
+  app.route('/:code')
+    .get((request, response) => {
+      const targetUrl = store.get(request.params.code);
+      if (!targetUrl) {
+        response.status(404).json({ error: 'Short code not found' });
         return;
       }
 
-      if (!response.headersSent) {
-        writeJson(response, 500, { error: 'Internal server error' });
-      } else {
-        response.end();
-      }
-
-      console.error(error);
+      response.redirect(302, targetUrl);
+    })
+    .all((request, response) => {
+      response.set('Allow', 'GET').status(405).json({ error: 'Method not allowed. Use GET' });
     });
+
+  app.use((request, response) => {
+    response.status(404).json({ error: 'Not found' });
   });
 
-  return { server, store };
+  app.use((error, request, response, next) => {
+    if (response.headersSent) {
+      next(error);
+      return;
+    }
+
+    if (error instanceof SyntaxError && error.type === 'entity.parse.failed') {
+      response.status(400).json({ error: 'Request body must be valid JSON' });
+      return;
+    }
+
+    if (error?.statusCode === 400) {
+      response.status(400).json({ error: error.message });
+      return;
+    }
+
+    console.error(error);
+    response.status(500).json({ error: 'Internal server error' });
+  });
+
+  return { app, store };
 }
 
 export function generateShortCode(length = 6) {
@@ -35,69 +80,6 @@ export function generateShortCode(length = 6) {
   }
 
   return code;
-}
-
-async function handleRequest(request, response, { store, generateCode }) {
-  const url = new URL(request.url ?? '/', 'http://localhost');
-  const { pathname } = url;
-
-  if (pathname === '/shorten') {
-    if (request.method !== 'POST') {
-      writeMethodNotAllowed(response, 'POST');
-      return;
-    }
-
-    const payload = await readJsonBody(request);
-    const targetUrl = normalizeTargetUrl(payload?.url);
-    const code = generateCode();
-
-    store.set(code, targetUrl);
-    writeJson(response, 201, {
-      url: targetUrl,
-      code,
-      shortUrl: buildShortUrl(request, code)
-    });
-    return;
-  }
-
-  if (pathname !== '/shorten' && /^\/[^/]+$/.test(pathname)) {
-    if (request.method !== 'GET') {
-      writeMethodNotAllowed(response, 'GET');
-      return;
-    }
-
-    const code = pathname.slice(1);
-    const targetUrl = store.get(code);
-    if (!targetUrl) {
-      writeJson(response, 404, { error: 'Short code not found' });
-      return;
-    }
-
-    response.writeHead(302, { Location: targetUrl });
-    response.end();
-    return;
-  }
-
-  writeJson(response, 404, { error: 'Not found' });
-}
-
-async function readJsonBody(request) {
-  const chunks = [];
-
-  for await (const chunk of request) {
-    chunks.push(chunk);
-  }
-
-  const rawBody = Buffer.concat(chunks).toString('utf8');
-  if (rawBody.trim().length === 0) {
-    throw badRequest('Request body must be valid JSON');
-  }
-
-  try {
-    return JSON.parse(rawBody);
-  } catch {
-    throw badRequest('Request body must be valid JSON');
-  }
 }
 
 function normalizeTargetUrl(value) {
@@ -120,31 +102,9 @@ function normalizeTargetUrl(value) {
 }
 
 function buildShortUrl(request, code) {
-  const host = getHeaderValue(request.headers['x-forwarded-host']) ?? getHeaderValue(request.headers.host) ?? 'localhost';
-  const protocol = getHeaderValue(request.headers['x-forwarded-proto']) ?? 'http';
+  const host = request.get('x-forwarded-host') ?? request.get('host') ?? 'localhost';
+  const protocol = request.get('x-forwarded-proto') ?? request.protocol;
   return `${protocol}://${host}/${code}`;
-}
-
-function getHeaderValue(value) {
-  if (Array.isArray(value)) {
-    return value[0];
-  }
-
-  return value ?? null;
-}
-
-function writeMethodNotAllowed(response, method) {
-  response.setHeader('Allow', method);
-  writeJson(response, 405, { error: `Method not allowed. Use ${method}` });
-}
-
-function writeJson(response, statusCode, payload) {
-  const body = JSON.stringify(payload);
-  response.writeHead(statusCode, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': Buffer.byteLength(body)
-  });
-  response.end(body);
 }
 
 function badRequest(message) {
