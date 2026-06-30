@@ -1,0 +1,55 @@
+target:
+  baseUrl: http://localhost:3000
+
+mix:
+  endpoints:
+    - name: shorten
+      weight: 70
+      method: POST
+      path: /shorten
+      headers:
+        Content-Type: application/json
+      bodyTemplateFile: ./shorten-endpoint.json
+    - name: redirect
+      weight: 30
+      method: GET
+      path: /:code
+      bodyTemplateFile: null
+
+search:
+  startRps: 50
+  maxRps: 75
+  resolutionRps: 1
+  duration: 10s
+  warmupDuration: 5s
+  cooldownSeconds: 2
+
+sla:
+  maxErrorRate: 0.01
+  p95Ms: 500
+  p99Ms: 2000
+  minAchievedRatio: 0.95
+
+k6:
+  preAllocatedVUs: 30
+  maxVUs: 200
+
+runtime:
+  mode: auto
+  dockerImage: grafana/k6:latest
+
+health:
+  url: null
+  intervalSeconds: 5
+  timeoutSeconds: 60
+
+bodyGenerators:
+  targetUrl:
+    type: sequence
+    prefix: https://example.com/r/
+    zeroPad: 8
+    duplicateRate: 0.00
+    reuseWindow: 100
+
+results:
+  outputDir: ./results
