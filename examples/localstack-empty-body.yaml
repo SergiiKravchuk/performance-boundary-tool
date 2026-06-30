@@ -1,0 +1,51 @@
+target:
+  baseUrl: http://localhost:8080
+
+mix:
+  endpoints:
+    - name: s3OnlyFlow
+      weight: 70
+      method: POST
+      path: /s3-only-flow
+      headers:
+        Content-Type: application/json
+      bodyTemplateFile: null
+    - name: lambdaFlow
+      weight: 30
+      method: POST
+      path: /lambda-flow
+      headers:
+        Content-Type: application/json
+      bodyTemplateFile: null
+
+search:
+  startRps: 5
+  maxRps: 60
+  resolutionRps: 1
+  duration: 20s
+  warmupDuration: 5s
+  cooldownSeconds: 5
+
+sla:
+  maxErrorRate: 0.01
+  p95Ms: 500
+  p99Ms: 2000
+  minAchievedRatio: 0.95
+
+k6:
+  preAllocatedVUs: 30
+  maxVUs: 200
+
+runtime:
+  mode: auto
+  dockerImage: grafana/k6:latest
+
+health:
+  url: null
+  intervalSeconds: 5
+  timeoutSeconds: 60
+
+bodyGenerators:
+
+results:
+  outputDir: ./results

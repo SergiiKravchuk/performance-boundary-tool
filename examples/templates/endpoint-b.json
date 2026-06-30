@@ -1,0 +1,8 @@
+{
+  "orderId": "{{orderId}}",
+  "requestKey": "{{requestKey}}",
+  "note": "static-note",
+  "context": {
+    "customerRef": "{{customerRef}}"
+  }
+}

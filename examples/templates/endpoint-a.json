@@ -1,0 +1,12 @@
+{
+  "orderId": "{{orderId}}",
+  "customerRef": "{{customerRef}}",
+  "requestKey": "{{requestKey}}",
+  "channel": "web",
+  "items": [
+    {
+      "sku": "SKU-1000",
+      "quantity": 1
+    }
+  ]
+}
