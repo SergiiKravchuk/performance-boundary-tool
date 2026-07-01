@@ -10,16 +10,20 @@ mix:
       headers:
         Content-Type: application/json
       bodyTemplateFile: ./shorten-endpoint.json
+      responseCapture:
+        shortUrl: shortUrl
     - name: redirect
       weight: 30
       method: GET
-      path: /:code
+      path: /{{randomCode}}
+      urlTemplate: '{{shortUrl}}'
+      urlTemplateRate: 0.70
       bodyTemplateFile: null
 
 search:
   startRps: 50
-  maxRps: 75
-  resolutionRps: 1
+  maxRps: 200
+  resolutionRps: 5
   duration: 10s
   warmupDuration: 5s
   cooldownSeconds: 2
@@ -48,6 +52,12 @@ bodyGenerators:
     type: sequence
     prefix: https://example.com/r/
     zeroPad: 8
+    duplicateRate: 0.00
+    reuseWindow: 100
+  randomCode:
+    type: random
+    length: 6
+    charset: alnum
     duplicateRate: 0.00
     reuseWindow: 100
 
